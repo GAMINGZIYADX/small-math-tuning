@@ -1,0 +1,11 @@
+# model weights / checkpoints (GBs, never commit)
+out/
+out_*/
+*.safetensors
+*.bin
+# environments
+venv/
+__pycache__/
+# large generated data and logs (keep small result files if you want, delete this line)
+*.jsonl
+*.log
