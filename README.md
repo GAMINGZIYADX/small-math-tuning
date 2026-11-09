@@ -2,6 +2,8 @@
 
 Experiments in improving small open LLMs (0.5B–1.5B) at math reasoning, on one RTX 5060 Ti (16 GB) via WSL2. Every change is measured against a baseline on standard benchmarks, and negative results are kept in.
 
+**Model:** the French fine-tune is on Hugging Face at [GAMINGZI/qwen2.5-math-1.5b-french](https://huggingface.co/GAMINGZI/qwen2.5-math-1.5b-french).
+
 **Stack:** PyTorch 2.11 (CUDA 12.8), Transformers 5.x, PEFT (LoRA), Hugging Face Datasets · Ubuntu on WSL2
 
 ## Results
@@ -45,6 +47,8 @@ The same problems drop by 47 points in French. Failures are genuine misreadings 
 **Data:** 3,000 GSM8K train questions → 2,805 passed the number-preservation check → 2,684 kept after self-solving (96% solve rate). **Training:** LoRA r=32 on all attention and MLP projections, 1 epoch, lr 1e-4, about 25 minutes on the RTX 5060 Ti.
 
 **Result:** French accuracy rose from 38.8% to 57.6% (+18.8 points, well beyond the ~±3 noise at n=250), with English unchanged (86.0% → 85.6%). That closes about 40% of the French–English gap, and it is the only training run in this project that produced a real gain.
+
+Weights: [GAMINGZI/qwen2.5-math-1.5b-french](https://huggingface.co/GAMINGZI/qwen2.5-math-1.5b-french).
 
 ### 5. Comparison with existing French-capable small models (MGSM, same script)
 | Model | Size | MGSM-en | MGSM-fr | Answers in |
