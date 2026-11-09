@@ -42,9 +42,27 @@ tok = AutoTokenizer.from_pretrained(a.model)
 model = AutoModelForCausalLM.from_pretrained(a.model, dtype=torch.bfloat16).cuda().eval()
 print(f"Loaded {a.model}. Each question is solved {a.k} times (takes ~30-60s).")
 
+
+def read_question():
+    """Multi-line input. Paste/type the question, then press Enter on TWO empty lines to send.
+    Single empty lines inside the question are fine."""
+    print("\nYou (paste question, then press Enter twice on empty lines to send; 'exit' to quit):")
+    lines, blank = [], False
+    while True:
+        line = input()
+        if line.strip().lower() in ("exit", "quit") and not lines:
+            return None
+        if line.strip() == "":
+            if lines and blank:
+                return "\n".join(lines)
+            blank = True
+            continue
+        blank = False
+        lines.append(line)
+
 while True:
-    q = input("\nYou: ").strip()
-    if q.lower() in ("exit", "quit", ""):
+    q = read_question()
+    if q is None:
         break
     t0 = time.time()
     prompt = tok.apply_chat_template([{"role": "system", "content": SYS}, {"role": "user", "content": q}],
