@@ -46,6 +46,18 @@ The same problems drop by 47 points in French. Failures are genuine misreadings 
 
 **Result:** French accuracy rose from 38.8% to 57.6% (+18.8 points, well beyond the ~±3 noise at n=250), with English unchanged (86.0% → 85.6%). That closes about 40% of the French–English gap, and it is the only training run in this project that produced a real gain.
 
+### 5. Comparison with existing French-capable small models (MGSM, same script)
+| Model | Size | MGSM-en | MGSM-fr | Answers in |
+|---|---|---|---|---|
+| Qwen2.5-Math-1.5B-Instruct | 1.5B | 86.0% | 38.8% | English |
+| **Ours (+ French SFT)** | 1.5B | **85.6%** | 57.6% | English |
+| Qwen/Qwen3.5-2B (non-thinking) | 2B | – | 62.0% | French |
+| kurakurai/Luth-2-2B | 2B | 80.4% | **72.8%** | French |
+
+Same prompt, greedy decoding, 1024-token budget for all models. Both Qwen3.5-based models run with their default chat template, which prefills an empty `<think></think>` (non-thinking mode). Qwen3.5-2B with thinking enabled would likely score higher but needs a much larger token budget.
+
+**Honest read:** Luth-2-2B (a French fine-tune of Qwen3.5-2B) beats our model by 15 points in French, well beyond noise. Its French–English gap is only 7.6 points, against 28 for ours. Stock Qwen3.5-2B is 4.4 points ahead of us in French, which is borderline at n=250 (±3 each). Our model is still the best of the three in English (85.6% vs 80.4% for Luth), and it is smaller. Luth's misses are mostly long rambles cut off at the token limit (26 of 37 unparsed answers).
+
 ## What I learned
 - Measure a baseline first. Two of three training attempts looked plausible in the training logs, and the evals showed no gain.
 - Rising training reward is not evidence: it rose 58% → 69% in GRPO run 1 while the benchmark didn't move.
