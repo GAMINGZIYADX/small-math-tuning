@@ -36,17 +36,22 @@ Failure analysis on MATH-500: mostly real errors (arithmetic slips, wrong setups
 | Model | MGSM-en | MGSM-fr |
 |---|---|---|
 | Qwen2.5-Math-1.5B-Instruct | 86.0% | **38.8%** |
-| + French SFT (below) | _TBD_ | _TBD_ |
+| **+ French SFT (below)** | 85.6% | **57.6%** (+18.8) |
 
 The same problems drop by 47 points in French. Failures are genuine misreadings of the French question, not parsing issues (only 8/153 had no final answer).
 
 **Approach (cross-lingual self-distillation):** translate GSM8K *train* questions to French (opus-mt-en-fr, filtered so every number survives translation). The model solves the **English** originals, and only correct solutions are kept. Then LoRA-SFT on *French question → the model's own correct English solution*. This teaches French comprehension without changing the reasoning style, and MGSM's test problems come from GSM8K's test split, so there is no train/test overlap.
 
+**Data:** 3,000 GSM8K train questions → 2,805 passed the number-preservation check → 2,684 kept after self-solving (96% solve rate). **Training:** LoRA r=32 on all attention and MLP projections, 1 epoch, lr 1e-4, about 25 minutes on the RTX 5060 Ti.
+
+**Result:** French accuracy rose from 38.8% to 57.6% (+18.8 points, well beyond the ~±3 noise at n=250), with English unchanged (86.0% → 85.6%). That closes about 40% of the French–English gap, and it is the only training run in this project that produced a real gain.
+
 ## What I learned
 - Measure a baseline first. Two of three training attempts looked plausible in the training logs, and the evals showed no gain.
 - Rising training reward is not evidence: it rose 58% → 69% in GRPO run 1 while the benchmark didn't move.
 - Check that training actually changed the model (adapter weight norms, identical outputs under a fixed seed).
-- Tune where the model is weak (French), not where it's already been heavily optimized (English MATH).
+- Tune where the model is weak (French: +18.8 points), not where it's already been heavily optimized (English MATH: no gain from SFT or RL).
+- Self-distillation (training on the model's own filtered outputs) improves a weak skill without damaging the strong one.
 
 ## Files
 | File | Purpose |
