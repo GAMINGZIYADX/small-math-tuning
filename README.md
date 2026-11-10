@@ -102,6 +102,17 @@ Goal: at least 70% on MGSM-fr. To avoid tuning on the test set, I built a **Fren
 
 **Honest read:** +9.6 on MGSM-fr and +8.4 on dev, both well beyond the ±3 noise, so this is a real gain. English dipped 2.8 points, which is borderline. v2 fixed 39 of v1's French misses and broke 15. It still misses 47 French questions that it solves in English, so there is headroom left. Training took 50 minutes. v2 replaced v1 on Hugging Face, and v1 stays in the repo history.
 
+**Majority voting on v2** (`eval_mgsm_vote.py`, 8 samples at temperature 0.7, most common answer):
+
+| | MGSM-fr | French dev |
+|---|---|---|
+| greedy | 67.2% | 65.6% |
+| single sample | 64.9% | 65.1% |
+| **vote@8** | **70.4%** | **72.4%** |
+| pass@8 | 83.6% | 86.4% |
+
+**The 70% target is reached, with voting:** 70.4% on MGSM-fr, backed by 72.4% on the dev set. Plain greedy decoding is still 67.2%. Voting costs 8× the inference compute. The 70.4 is within noise of 70, so the dev number is the stronger evidence. Gotcha: the first voting run spilled past 16 GB of VRAM and ran about 4× slower (the GPU drew 50 W at "99%" utilization). The script now clears the CUDA cache per batch, writes results as it goes, and can resume.
+
 ## What I learned
 - Measure a baseline first. Two of three training attempts looked plausible in the training logs, and the evals showed no gain.
 - Rising training reward is not evidence: it rose 58% → 69% in GRPO run 1 while the benchmark didn't move.

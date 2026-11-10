@@ -1,7 +1,8 @@
 """MGSM with majority voting: k sampled answers per question, the most common answer wins.
 Usage: python eval_mgsm_vote.py --lang fr --model out_fr2/merged --k 8
        python eval_mgsm_vote.py --data mgsm_dev_fr.jsonl --model out_fr2/merged --k 8
-Reports: mean single-sample accuracy, majority vote@k, pass@k. Saves <tag>_<model>_k<k>.jsonl."""
+Reports: mean single-sample accuracy, majority vote@k, pass@k. Saves <tag>_<model>_k<k>.jsonl (flushed per batch; rerun resumes).
+Run with PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid spilling past 16 GB."""
 import argparse, collections, json, os, re, torch
 from datasets import load_dataset, Dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -14,7 +15,7 @@ ap.add_argument("--k", type=int, default=8)
 ap.add_argument("--temp", type=float, default=0.7)
 ap.add_argument("--top_p", type=float, default=0.95)
 ap.add_argument("--max_new", type=int, default=1024)
-ap.add_argument("--prompts_per_batch", type=int, default=16)
+ap.add_argument("--prompts_per_batch", type=int, default=4)
 ap.add_argument("--seed", type=int, default=0)
 a = ap.parse_args()
 SYS = "Please reason step by step, and put your final answer within \\boxed{}."
@@ -53,9 +54,15 @@ model = AutoModelForCausalLM.from_pretrained(a.model, dtype=torch.bfloat16).cuda
 ds = Dataset.from_list([json.loads(l) for l in open(a.data)]) if a.data else load_dataset("juletxara/mgsm", a.lang, split="test")
 name = a.model.strip("/").replace("/", "_") if os.path.isdir(a.model) else a.model.split("/")[-1]
 tag = os.path.basename(a.data).removesuffix(".jsonl") if a.data else f"mgsm_{a.lang}"
-f = open(f"{tag}_{name}_k{a.k}.jsonl", "w")
-single = vote = passk = 0
-for i in range(0, len(ds), a.prompts_per_batch):
+out_path = f"{tag}_{name}_k{a.k}.jsonl"
+done = [json.loads(l) for l in open(out_path)] if os.path.exists(out_path) else []   # resume
+single = sum(r["n_ok"] for r in done) / a.k
+vote = sum(r["vote_ok"] for r in done)
+passk = sum(r["n_ok"] > 0 for r in done)
+if done:
+    print(f"Resuming after {len(done)} finished questions", flush=True)
+f = open(out_path, "a")
+for i in range(len(done), len(ds), a.prompts_per_batch):
     b = ds[i:i + a.prompts_per_batch]
     prompts = [tok.apply_chat_template([{"role": "system", "content": SYS}, {"role": "user", "content": q}],
                                        tokenize=False, add_generation_prompt=True) for q in b["question"]]
@@ -75,6 +82,9 @@ for i in range(0, len(ds), a.prompts_per_batch):
         passk += any(oks)
         f.write(json.dumps({"question": q, "gold": gold, "preds": preds, "vote": v, "vote_ok": v_ok,
                             "n_ok": sum(oks)}, ensure_ascii=False) + "\n")
+    f.flush()
+    del out
+    torch.cuda.empty_cache()   # long sampled answers fragment the cache; on 16 GB that spills to shared memory
     n = min(i + a.prompts_per_batch, len(ds))
     print(f"{n}/{len(ds)}  single {single / n:.3f}  vote@{a.k} {vote / n:.3f}  pass@{a.k} {passk / n:.3f}", flush=True)
 N = len(ds)
