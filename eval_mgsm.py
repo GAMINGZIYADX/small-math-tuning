@@ -3,7 +3,7 @@ Usage: python eval_mgsm.py --lang fr        (and --lang en to compare)
        python eval_mgsm.py --lang fr --model out_grpo/merged
        python eval_mgsm.py --lang fr --model X --max_new 2048   (writes ..._mn2048.jsonl)
 Greedy decoding. Saves outputs to mgsm_<lang>_<model>.jsonl."""
-import argparse, json, re, torch
+import argparse, json, os, re, torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
@@ -46,7 +46,11 @@ def to_num(s):
 tok = AutoTokenizer.from_pretrained(a.model, padding_side="left")
 model = AutoModelForCausalLM.from_pretrained(a.model, dtype=torch.bfloat16).cuda().eval()
 ds = load_dataset("juletxara/mgsm", a.lang, split="test")
+# Local paths keep their folder (out_fr_tf/merged -> out_fr_tf_merged) so runs never overwrite each other.
+# out_fr/merged keeps its historical name "merged".
 name = a.model.strip("/").split("/")[-1]
+if os.path.isdir(a.model) and a.model.strip("/") != "out_fr/merged":
+    name = a.model.strip("/").replace("/", "_")
 suffix = "" if a.max_new == 1024 else f"_mn{a.max_new}"
 f = open(f"mgsm_{a.lang}_{name}{suffix}.jsonl", "w")
 correct = 0

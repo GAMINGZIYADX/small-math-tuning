@@ -66,12 +66,25 @@ Same prompt, greedy decoding, 1024-token budget for all models. Both Qwen3.5-bas
 ### 6. Harder French eval: MATH-500 in French (first 200 problems)
 GSM-level problems are not enough to judge French math. I translated the first 200 MATH-500 problems with opus-mt-en-fr (`make_math500_fr.py`). All LaTeX (`$...$`, `\[...\]`, environments, `[asy]` blocks, `\$`) is replaced with placeholders before translation and restored afterwards. A problem is kept only if every LaTeX span comes back byte-identical, every number in the prose survives, and no English prose ended up inside a math span. An independent audit of all 200 problems found every LaTeX span identical, `\frac` 70/70 and `$` 1202/1202, and no leftover English. The data is in `math500_fr.jsonl`.
 
-| Model | MATH-fr (200 q, greedy, 2048 tokens) | Cut off |
-|---|---|---|
-| **Ours (+ French SFT)** | **65.0%** | 1 |
-| kurakurai/Luth-2-2B | 62.0% | 65 |
+| Model | MATH-fr | MATH-en (same 200) | Gap | Cut off (fr) |
+|---|---|---|---|---|
+| Qwen2.5-Math-1.5B-Instruct (base) | 62.5% | 74.6%* | 12.1 | 2 |
+| **Ours (+ French SFT)** | **65.0%** | 74.5% | 9.5 | 1 |
+| kurakurai/Luth-2-2B | 62.0% | 64.0% | 2.0 | 65 |
 
-**Honest read:** on harder math the order flips. Our 1.5B model is 3 points ahead, which is within noise at n=200 (±3), so call it a tie. Luth is limited by its verbosity: a third of its answers do not finish within 2048 tokens. English runs on the same 200 problems (to measure each model's French gap) are still pending.
+Greedy decoding, 2048 tokens. *The base model's English figure is the single-sample score from section 3 (sampled, k=8, same 200 problems), not a greedy run.
+
+**Honest read:** on harder math our 1.5B model is level with Luth-2-2B (65.0 vs 62.0, within ±3 noise). The French SFT does **not** measurably help here (+2.5 over base, within noise). MATH problems are mostly LaTeX, so the base model loses only about 12 points in French, against 47 on MGSM. The French gain is in word-problem comprehension. English MATH is unchanged (74.5% vs 74.6%). Luth's French gap is tiny, but it is capped by verbosity: a third of its answers don't finish within 2048 tokens, in either language.
+
+### 7. Negative result: "translate-first" SFT
+**Failure analysis:** 77 of our 106 MGSM-fr misses are questions the model solves in English. It misreads the French while restating it ("3 fois par semaine" → "6 days a week"). **Idea:** train French question → *the original English question* + solution, so the restatement step learns to be faithful (`make_fr_translate_first.py`, same 2,684 examples, same LoRA setup).
+
+| Model | MGSM-fr |
+|---|---|
+| Ours (+ French SFT) | **57.6%** |
+| + translate-first | 42.8% (−14.8) |
+
+It made things much worse. The model always writes the English restatement, but a 1.5B math model cannot translate: a house renovation became a used-clothing store, vacuum-cleaner sales became a cake recipe. Once it has written the wrong question it solves that one, while the original model kept looking at the French question during its reasoning. Lesson: don't force an explicit intermediate step that the model is bad at.
 
 ## What I learned
 - Measure a baseline first. Two of three training attempts looked plausible in the training logs, and the evals showed no gain.
@@ -79,6 +92,7 @@ GSM-level problems are not enough to judge French math. I translated the first 2
 - Check that training actually changed the model (adapter weight norms, identical outputs under a fixed seed).
 - Tune where the model is weak (French: +18.8 points), not where it's already been heavily optimized (English MATH: no gain from SFT or RL).
 - Self-distillation (training on the model's own filtered outputs) improves a weak skill without damaging the strong one.
+- Forcing an explicit intermediate step the model is bad at (translation) makes errors worse: the model commits to its own wrong restatement.
 
 ## Files
 | File | Purpose |
@@ -93,6 +107,7 @@ GSM-level problems are not enough to judge French math. I translated the first 2
 | `grpo.py` | GRPO (RL) with LoRA, written from scratch |
 | `make_fr_data.py` | builds French training data (translation + self-solved filtering) |
 | `train_sft_fr.py` | LoRA SFT on the French data |
+| `make_fr_translate_first.py` | translate-first variant of the French data (negative result, section 7) |
 | `chat.py` / `chat_vote.py` | interactive chat, plain or with majority voting |
 
 ## Run
