@@ -133,6 +133,21 @@ v2 lost 2.8 points in English. **v3 = v2 + one more epoch** at lr 5e-5 on the sa
 
 **Current best: 74.0% on MGSM-fr with voting, 68.0% greedy, from 38.8% for the base model.** The dev set agrees at 72.8%. Plain greedy decoding is still below 70. Gotcha: the first v3 run ran out of memory at step 29 with batch size 4. It worked at batch size 2 with 8 accumulation steps (same effective batch) and `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.
 
+### Side challenge: catch Luth-2-2B
+
+I'm trying to fine-tune this 1.5B model to **tie or beat [kurakurai/Luth-2-2B](https://huggingface.co/kurakurai/Luth-2-2B)**, a larger model built for French, on French math. Same eval script, greedy decoding:
+
+| | This model (1.5B) | Luth-2-2B (2B) | |
+|---|---|---|---|
+| MGSM-fr, greedy | 68.0% | **77.2%** | Luth ahead by 9.2 |
+| MGSM-fr, this model with vote@8 | 74.0% | 77.2% (greedy) | gap 3.2, not like-for-like |
+| French MATH-500 (first 200, harder) | **65.0%**¹ | 62.0% | tie (within ±3) |
+| MGSM-en | **86.4%** | 80.4% | this model ahead |
+
+¹ measured on v1 (section 6).
+
+Luth starts from a newer, larger, multilingual base. This model is a math specialist that had to learn to read French. Its math is already there: 86% in English and 84% pass@8 in French. The remaining gap is French comprehension. Next steps: GRPO on French questions, more natural-French training data, then a larger LoRA. Progress will be logged in this README.
+
 ## What I learned
 - Measure a baseline first. Two of three training attempts looked plausible in the training logs, and the evals showed no gain.
 - Rising training reward is not evidence: it rose 58% → 69% in GRPO run 1 while the benchmark didn't move.
