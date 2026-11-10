@@ -12,6 +12,7 @@ ap.add_argument("--model", default="Qwen/Qwen2.5-Math-1.5B-Instruct")
 ap.add_argument("--lang", default="fr")
 ap.add_argument("--bs", type=int, default=32)
 ap.add_argument("--max_new", type=int, default=1024)
+ap.add_argument("--data", default=None, help="jsonl with question/answer_number (e.g. mgsm_dev_fr.jsonl) instead of MGSM")
 a = ap.parse_args()
 SYS = "Please reason step by step, and put your final answer within \\boxed{}."
 
@@ -45,14 +46,19 @@ def to_num(s):
 
 tok = AutoTokenizer.from_pretrained(a.model, padding_side="left")
 model = AutoModelForCausalLM.from_pretrained(a.model, dtype=torch.bfloat16).cuda().eval()
-ds = load_dataset("juletxara/mgsm", a.lang, split="test")
+if a.data:
+    from datasets import Dataset
+    ds = Dataset.from_list([json.loads(l) for l in open(a.data)])
+else:
+    ds = load_dataset("juletxara/mgsm", a.lang, split="test")
 # Local paths keep their folder (out_fr_tf/merged -> out_fr_tf_merged) so runs never overwrite each other.
 # out_fr/merged keeps its historical name "merged".
 name = a.model.strip("/").split("/")[-1]
 if os.path.isdir(a.model) and a.model.strip("/") != "out_fr/merged":
     name = a.model.strip("/").replace("/", "_")
 suffix = "" if a.max_new == 1024 else f"_mn{a.max_new}"
-f = open(f"mgsm_{a.lang}_{name}{suffix}.jsonl", "w")
+tag = f"mgsm_{a.lang}" if not a.data else os.path.basename(a.data).removesuffix(".jsonl")
+f = open(f"{tag}_{name}{suffix}.jsonl", "w")
 correct = 0
 for i in range(0, len(ds), a.bs):
     b = ds[i:i + a.bs]
@@ -69,4 +75,4 @@ for i in range(0, len(ds), a.bs):
         f.write(json.dumps({"question": q, "gold": gold, "pred": p, "ok": ok, "output": t}, ensure_ascii=False) + "\n")
     n = min(i + a.bs, len(ds))
     print(f"{n}/{len(ds)}  acc so far: {correct / n:.3f}", flush=True)
-print(f"\nFINAL MGSM-{a.lang} accuracy ({a.model}, max_new={a.max_new}): {correct / len(ds):.3f}")
+print(f"\nFINAL {tag if a.data else 'MGSM-' + a.lang} accuracy ({a.model}, max_new={a.max_new}): {correct / len(ds):.3f}")

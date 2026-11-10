@@ -86,12 +86,30 @@ Greedy decoding, 2048 tokens. *The base model's English figure is the single-sam
 
 It made things much worse. The model always writes the English restatement, but a 1.5B math model cannot translate: a house renovation became a used-clothing store, vacuum-cleaner sales became a cake recipe. Once it has written the wrong question it solves that one, while the original model kept looking at the French question during its reasoning. Lesson: don't force an explicit intermediate step that the model is bad at.
 
+### 8. French v2: more and better data → MGSM-fr 67.2%
+Goal: at least 70% on MGSM-fr. To avoid tuning on the test set, I built a **French dev set** of 250 GSM8K test questions that are *not* in MGSM, translated by Luth-2-2B (`mgsm_dev_fr.jsonl`). Versions are chosen on the dev set, and MGSM-fr stays the reported test score. The dev set tracks MGSM closely: base 36.0 vs 38.8, v1 57.2 vs 57.6.
+
+**What changed vs v1** (`make_fr_data2.py`, same training script and LoRA setup):
+- all 7,473 GSM8K train questions instead of 3,000;
+- each question translated **twice**: opus-mt (literal) and Luth-2-2B (natural French). Luth gets a prompt to keep every number as digits and not to solve. The number check now understands French number words;
+- 13,644 examples (6,720 opus-mt + 6,924 Luth), about 5× v1. Targets are still the base model's own correct English solutions (7,154 of 7,473 correct).
+
+| Model | MGSM-fr | French dev | MGSM-en |
+|---|---|---|---|
+| Base | 38.8% | 36.0% | 86.0% |
+| v1 (2.7k, opus-mt) | 57.6% | 57.2% | 85.6% |
+| **v2 (13.6k, opus-mt + Luth)** | **67.2%** | **65.6%** | 82.8% |
+
+**Honest read:** +9.6 on MGSM-fr and +8.4 on dev, both well beyond the ±3 noise, so this is a real gain. English dipped 2.8 points, which is borderline. v2 fixed 39 of v1's French misses and broke 15. It still misses 47 French questions that it solves in English, so there is headroom left. Training took 50 minutes. v2 replaced v1 on Hugging Face, and v1 stays in the repo history.
+
 ## What I learned
 - Measure a baseline first. Two of three training attempts looked plausible in the training logs, and the evals showed no gain.
 - Rising training reward is not evidence: it rose 58% → 69% in GRPO run 1 while the benchmark didn't move.
 - Check that training actually changed the model (adapter weight norms, identical outputs under a fixed seed).
 - Tune where the model is weak (French: +18.8 points), not where it's already been heavily optimized (English MATH: no gain from SFT or RL).
 - Self-distillation (training on the model's own filtered outputs) improves a weak skill without damaging the strong one.
+- Data was the bottleneck, not code: 5× more examples with a second, natural-French translation took MGSM-fr from 57.6% to 67.2%.
+- Keep a dev set separate from the benchmark before chasing a target number.
 - Forcing an explicit intermediate step the model is bad at (translation) makes errors worse: the model commits to its own wrong restatement.
 
 ## Files
@@ -100,7 +118,7 @@ It made things much worse. The model always writes the English restatement, but 
 | `eval_gsm8k.py` | GSM8K greedy eval |
 | `eval_math500.py` | MATH-500 greedy eval, saves per-question outputs |
 | `eval_math500_vote.py` | single / majority-vote / pass@k eval with subject and level breakdown, resumable |
-| `eval_mgsm.py` | MGSM eval in any language (en, fr, …), `--max_new` for the token budget |
+| `eval_mgsm.py` | MGSM eval in any language (en, fr, …), `--max_new` for the token budget, `--data` for the dev set |
 | `make_math500_fr.py` | translates MATH-500 to French with LaTeX protected by placeholders, plus integrity checks |
 | `eval_math500_fr.py` | MATH eval on the French set (`--lang en` runs the same problems in English) |
 | `train_sft.py` | incremental LoRA SFT on MetaMathQA |
@@ -108,6 +126,8 @@ It made things much worse. The model always writes the English restatement, but 
 | `make_fr_data.py` | builds French training data (translation + self-solved filtering) |
 | `train_sft_fr.py` | LoRA SFT on the French data |
 | `make_fr_translate_first.py` | translate-first variant of the French data (negative result, section 7) |
+| `make_fr_data2.py` | v2 French data: all GSM8K train questions, opus-mt + Luth-2-2B translations, plus the French dev set |
+| `eval_mgsm_vote.py` | MGSM / dev-set eval with majority voting (k samples), single / vote@k / pass@k |
 | `chat.py` / `chat_vote.py` | interactive chat, plain or with majority voting |
 
 ## Run
