@@ -57,10 +57,21 @@ Weights: [GAMINGZI/qwen2.5-math-1.5b-french](https://huggingface.co/GAMINGZI/qwe
 | **Ours (+ French SFT)** | 1.5B | **85.6%** | 57.6% | English |
 | Qwen/Qwen3.5-2B (non-thinking) | 2B | – | 62.0% | French |
 | kurakurai/Luth-2-2B | 2B | 80.4% | **72.8%** | French |
+| kurakurai/Luth-2-2B, 2048-token budget | 2B | – | **77.2%** | French |
 
 Same prompt, greedy decoding, 1024-token budget for all models. Both Qwen3.5-based models run with their default chat template, which prefills an empty `<think></think>` (non-thinking mode). Qwen3.5-2B with thinking enabled would likely score higher but needs a much larger token budget.
 
-**Honest read:** Luth-2-2B (a French fine-tune of Qwen3.5-2B) beats our model by 15 points in French, well beyond noise. Its French–English gap is only 7.6 points, against 28 for ours. Stock Qwen3.5-2B is 4.4 points ahead of us in French, which is borderline at n=250 (±3 each). Our model is still the best of the three in English (85.6% vs 80.4% for Luth), and it is smaller. Luth's misses are mostly long rambles cut off at the token limit (26 of 37 unparsed answers).
+**Honest read:** Luth-2-2B (a French fine-tune of Qwen3.5-2B) beats our model by 15 points in French, well beyond noise. Its French–English gap is only 7.6 points, against 28 for ours. Stock Qwen3.5-2B is 4.4 points ahead of us in French, which is borderline at n=250 (±3 each). Our model is still the best of the three in English (85.6% vs 80.4% for Luth), and it is smaller. Luth's misses are mostly long rambles cut off at the token limit: 38 answers hit the 1024-token cap. With 2048 tokens it rises to 77.2% (11 wrong answers become right, none flip the other way), but 20 answers are still cut off. Our model only hit the 1024 cap twice, so a bigger budget would not help it, and the 2048 number is the fair one for Luth.
+
+### 6. Harder French eval: MATH-500 in French (first 200 problems)
+GSM-level problems are not enough to judge French math. I translated the first 200 MATH-500 problems with opus-mt-en-fr (`make_math500_fr.py`). All LaTeX (`$...$`, `\[...\]`, environments, `[asy]` blocks, `\$`) is replaced with placeholders before translation and restored afterwards. A problem is kept only if every LaTeX span comes back byte-identical, every number in the prose survives, and no English prose ended up inside a math span. An independent audit of all 200 problems found every LaTeX span identical, `\frac` 70/70 and `$` 1202/1202, and no leftover English. The data is in `math500_fr.jsonl`.
+
+| Model | MATH-fr (200 q, greedy, 2048 tokens) | Cut off |
+|---|---|---|
+| **Ours (+ French SFT)** | **65.0%** | 1 |
+| kurakurai/Luth-2-2B | 62.0% | 65 |
+
+**Honest read:** on harder math the order flips. Our 1.5B model is 3 points ahead, which is within noise at n=200 (±3), so call it a tie. Luth is limited by its verbosity: a third of its answers do not finish within 2048 tokens. English runs on the same 200 problems (to measure each model's French gap) are still pending.
 
 ## What I learned
 - Measure a baseline first. Two of three training attempts looked plausible in the training logs, and the evals showed no gain.
@@ -75,7 +86,9 @@ Same prompt, greedy decoding, 1024-token budget for all models. Both Qwen3.5-bas
 | `eval_gsm8k.py` | GSM8K greedy eval |
 | `eval_math500.py` | MATH-500 greedy eval, saves per-question outputs |
 | `eval_math500_vote.py` | single / majority-vote / pass@k eval with subject and level breakdown, resumable |
-| `eval_mgsm.py` | MGSM eval in any language (en, fr, …) |
+| `eval_mgsm.py` | MGSM eval in any language (en, fr, …), `--max_new` for the token budget |
+| `make_math500_fr.py` | translates MATH-500 to French with LaTeX protected by placeholders, plus integrity checks |
+| `eval_math500_fr.py` | MATH eval on the French set (`--lang en` runs the same problems in English) |
 | `train_sft.py` | incremental LoRA SFT on MetaMathQA |
 | `grpo.py` | GRPO (RL) with LoRA, written from scratch |
 | `make_fr_data.py` | builds French training data (translation + self-solved filtering) |
