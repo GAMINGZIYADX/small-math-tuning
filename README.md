@@ -113,6 +113,16 @@ Goal: at least 70% on MGSM-fr. To avoid tuning on the test set, I built a **Fren
 
 **The 70% target is reached, with voting:** 70.4% on MGSM-fr, backed by 72.4% on the dev set. Plain greedy decoding is still 67.2%. Voting costs 8× the inference compute. The 70.4 is within noise of 70, so the dev number is the stronger evidence. Gotcha: the first voting run spilled past 16 GB of VRAM and ran about 4× slower (the GPU drew 50 W at "99%" utilization). The script now clears the CUDA cache per batch, writes results as it goes, and can resume.
 
+### 9. French v3: English restored
+v2 lost 2.8 points in English. **v3 = v2 + one more epoch** at lr 5e-5 on the same French data plus **2,000 English examples** (English question → own correct solution), 15,644 examples in total.
+
+| Model | MGSM-fr | French dev | MGSM-en |
+|---|---|---|---|
+| v2 | 67.2% | 65.6% | 82.8% |
+| **v3** | **68.0%** | **65.6%** | **86.4%** |
+
+**Honest read:** French did not move (an exact tie on dev, and +0.8 on MGSM is noise), so a second epoch over the same French questions adds nothing. Training loss fell from 0.12 to 0.07 anyway, which is memorization, not skill. The English mix did its job: 86.4%, the base model's level. v3 replaced v2 on Hugging Face because it is as good in French and better in English. Gotcha: the first v3 run ran out of memory at step 29 with batch size 4. It worked at batch size 2 with 8 accumulation steps (same effective batch) and `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.
+
 ## What I learned
 - Measure a baseline first. Two of three training attempts looked plausible in the training logs, and the evals showed no gain.
 - Rising training reward is not evidence: it rose 58% → 69% in GRPO run 1 while the benchmark didn't move.
@@ -121,6 +131,7 @@ Goal: at least 70% on MGSM-fr. To avoid tuning on the test set, I built a **Fren
 - Self-distillation (training on the model's own filtered outputs) improves a weak skill without damaging the strong one.
 - Data was the bottleneck, not code: 5× more examples with a second, natural-French translation took MGSM-fr from 57.6% to 67.2%.
 - Keep a dev set separate from the benchmark before chasing a target number.
+- Training loss keeps falling on a second epoch even when the benchmark doesn't move. Mixing in a little English is a cheap way to protect the strong language.
 - Forcing an explicit intermediate step the model is bad at (translation) makes errors worse: the model commits to its own wrong restatement.
 
 ## Files
