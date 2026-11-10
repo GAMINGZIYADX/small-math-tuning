@@ -121,7 +121,17 @@ v2 lost 2.8 points in English. **v3 = v2 + one more epoch** at lr 5e-5 on the sa
 | v2 | 67.2% | 65.6% | 82.8% |
 | **v3** | **68.0%** | **65.6%** | **86.4%** |
 
-**Honest read:** French did not move (an exact tie on dev, and +0.8 on MGSM is noise), so a second epoch over the same French questions adds nothing. Training loss fell from 0.12 to 0.07 anyway, which is memorization, not skill. The English mix did its job: 86.4%, the base model's level. v3 replaced v2 on Hugging Face because it is as good in French and better in English. Gotcha: the first v3 run ran out of memory at step 29 with batch size 4. It worked at batch size 2 with 8 accumulation steps (same effective batch) and `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.
+**Honest read:** French did not move (an exact tie on dev, and +0.8 on MGSM is noise), so a second epoch over the same French questions adds nothing. Training loss fell from 0.12 to 0.07 anyway, which is memorization, not skill. The English mix did its job: 86.4%, the base model's level. v3 replaced v2 on Hugging Face because it is as good in French and better in English.
+
+**v3 with majority voting** (k=8, T=0.7):
+
+| | MGSM-fr | French dev |
+|---|---|---|
+| greedy | 68.0% | 65.6% |
+| **vote@8** | **74.0%** | **72.8%** |
+| pass@8 | 83.6% | 86.8% |
+
+**Current best: 74.0% on MGSM-fr with voting, 68.0% greedy, from 38.8% for the base model.** The dev set agrees at 72.8%. Plain greedy decoding is still below 70. Gotcha: the first v3 run ran out of memory at step 29 with batch size 4. It worked at batch size 2 with 8 accumulation steps (same effective batch) and `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.
 
 ## What I learned
 - Measure a baseline first. Two of three training attempts looked plausible in the training logs, and the evals showed no gain.
